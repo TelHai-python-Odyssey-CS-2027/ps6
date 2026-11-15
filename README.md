@@ -2,7 +2,7 @@
 
 Read a tab-separated codon table from a text file and build a dictionary.
 
-**Due (Medicine):** 26/11/2026 at 08:00 (Asia/Jerusalem).
+**Due (Odyssey):** 25/11/2026 at 08:00 (Asia/Jerusalem).
 
 ## What to change
 
