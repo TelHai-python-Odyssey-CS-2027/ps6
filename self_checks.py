@@ -16,19 +16,28 @@ def _check(title, points, ok, detail=""):
     return 0
 
 
-def _call_using_file_path(func, file_path="data/codons.txt"):
-    """Call func with a copy at another path; hide the default file so hardcoding fails."""
-    real = Path(file_path)
-    with tempfile.TemporaryDirectory() as tmp:
-        alt = Path(tmp) / "codon_table.tsv"
-        shutil.copy(real, alt)
-        hidden = real.with_name(real.name + ".bak_selfcheck")
-        real.rename(hidden)
-        try:
-            return func(str(alt))
-        finally:
-            if not real.exists() and hidden.exists():
-                hidden.rename(real)
+def _with_hidden_default(real: Path, alt: Path, func):
+    """Call func(alt) while the default data file is temporarily renamed away."""
+    hidden = real.with_name(real.name + ".bak_selfcheck")
+    real.rename(hidden)
+    try:
+        return func(str(alt))
+    finally:
+        if not real.exists() and hidden.exists():
+            hidden.rename(real)
+
+
+def _plant_aaa(text: str, letter: str) -> str:
+    out = []
+    for line in text.splitlines(True):
+        if line.startswith("AAA\t"):
+            parts = line.rstrip("\n\r").split("\t")
+            if len(parts) >= 3:
+                parts[2] = letter
+            nl = "\n" if line.endswith("\n") else ""
+            line = "\t".join(parts) + nl
+        out.append(line)
+    return "".join(out)
 
 
 def run_create_codon_dict_checks(func, file_path="data/codons.txt"):
@@ -38,8 +47,30 @@ def run_create_codon_dict_checks(func, file_path="data/codons.txt"):
         print(f"[FAIL] missing data file: {file_path}")
         return False
 
+    original = path.read_text()
+
     try:
-        d = _call_using_file_path(func, file_path)
+        with tempfile.TemporaryDirectory() as tmp:
+            # Canary: altered AAA must be returned → proves the given path was read.
+            alt_canary = Path(tmp) / "canary.tsv"
+            alt_canary.write_text(_plant_aaa(original, "Z"))
+            d_canary = _with_hidden_default(path, alt_canary, func)
+
+            if not isinstance(d_canary, dict):
+                print(f"[FAIL] return type should be dict, got {type(d_canary).__name__}")
+                return False
+            if d_canary.get("AAA") != "Z":
+                print(
+                    "[FAIL] create_codon_dict did not use file_path\n"
+                    "    Hint: open and read the path passed in (do not hardcode "
+                    "'data/codons.txt' or a fixed dictionary)"
+                )
+                return False
+
+            # Normal table for the scored checks.
+            alt = Path(tmp) / "codon_table.tsv"
+            alt.write_text(original)
+            d = _with_hidden_default(path, alt, func)
     except FileNotFoundError as e:
         print(
             "[FAIL] create_codon_dict raised FileNotFoundError\n"
