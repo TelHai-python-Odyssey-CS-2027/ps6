@@ -1,6 +1,8 @@
 """Student-facing self-checks for PS6 (same cases as the autograder)."""
 from __future__ import annotations
 
+import shutil
+import tempfile
 from pathlib import Path
 
 
@@ -14,6 +16,21 @@ def _check(title, points, ok, detail=""):
     return 0
 
 
+def _call_using_file_path(func, file_path="data/codons.txt"):
+    """Call func with a copy at another path; hide the default file so hardcoding fails."""
+    real = Path(file_path)
+    with tempfile.TemporaryDirectory() as tmp:
+        alt = Path(tmp) / "codon_table.tsv"
+        shutil.copy(real, alt)
+        hidden = real.with_name(real.name + ".bak_selfcheck")
+        real.rename(hidden)
+        try:
+            return func(str(alt))
+        finally:
+            if not real.exists() and hidden.exists():
+                hidden.rename(real)
+
+
 def run_create_codon_dict_checks(func, file_path="data/codons.txt"):
     earned = total = 0
     path = Path(file_path)
@@ -22,7 +39,14 @@ def run_create_codon_dict_checks(func, file_path="data/codons.txt"):
         return False
 
     try:
-        d = func(file_path)
+        d = _call_using_file_path(func, file_path)
+    except FileNotFoundError as e:
+        print(
+            "[FAIL] create_codon_dict raised FileNotFoundError\n"
+            "    Hint: open the path passed as file_path — do not hardcode "
+            f"'data/codons.txt' ({e})"
+        )
+        return False
     except Exception as e:
         print(f"[FAIL] create_codon_dict raised {type(e).__name__}: {e}")
         return False
