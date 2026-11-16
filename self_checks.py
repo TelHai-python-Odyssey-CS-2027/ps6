@@ -1,7 +1,6 @@
 """Student-facing self-checks for PS6 (same cases as the autograder)."""
 from __future__ import annotations
 
-import shutil
 import tempfile
 from pathlib import Path
 
@@ -16,28 +15,37 @@ def _check(title, points, ok, detail=""):
     return 0
 
 
-def _with_hidden_default(real: Path, alt: Path, func):
-    """Call func(alt) while the default data file is temporarily renamed away."""
-    hidden = real.with_name(real.name + ".bak_selfcheck")
-    real.rename(hidden)
-    try:
-        return func(str(alt))
-    finally:
-        if not real.exists() and hidden.exists():
-            hidden.rename(real)
-
-
-def _plant_aaa(text: str, letter: str) -> str:
-    out = []
-    for line in text.splitlines(True):
-        if line.startswith("AAA\t"):
-            parts = line.rstrip("\n\r").split("\t")
-            if len(parts) >= 3:
-                parts[2] = letter
-            nl = "\n" if line.endswith("\n") else ""
-            line = "\t".join(parts) + nl
-        out.append(line)
-    return "".join(out)
+def _must_use_file_path(func) -> bool:
+    """Call with a tiny dummy TSV; hardcoded data/codons.txt or a fixed dict will fail."""
+    dummy = (
+        "XX1\tIgn\tA\tIgnore\n"
+        "XX2\tIgn\tB\tIgnore\n"
+        "XX3\tIgn\tC\tIgnore\n"
+    )
+    expected = {"XX1": "A", "XX2": "B", "XX3": "C"}
+    with tempfile.TemporaryDirectory() as tmp:
+        alt = Path(tmp) / "dummy_table.tsv"
+        alt.write_text(dummy)
+        try:
+            got = func(str(alt))
+        except Exception as e:
+            print(
+                f"[FAIL] create_codon_dict raised {type(e).__name__} on a dummy file_path: {e}\n"
+                "    Hint: open the path passed as file_path (not a hardcoded filename)"
+            )
+            return False
+    if not isinstance(got, dict):
+        print(f"[FAIL] return type should be dict, got {type(got).__name__}")
+        return False
+    if got != expected:
+        print(
+            "[FAIL] create_codon_dict did not use file_path\n"
+            f"    Hint: expected {expected} from a dummy TSV, got {got!r}\n"
+            "    Open and parse the given path; do not hardcode 'data/codons.txt' or answers"
+        )
+        return False
+    print("[PASS] create_codon_dict uses file_path (dummy file)")
+    return True
 
 
 def run_create_codon_dict_checks(func, file_path="data/codons.txt"):
@@ -47,37 +55,11 @@ def run_create_codon_dict_checks(func, file_path="data/codons.txt"):
         print(f"[FAIL] missing data file: {file_path}")
         return False
 
-    original = path.read_text()
+    if not _must_use_file_path(func):
+        return False
 
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            # Canary: altered AAA must be returned → proves the given path was read.
-            alt_canary = Path(tmp) / "canary.tsv"
-            alt_canary.write_text(_plant_aaa(original, "Z"))
-            d_canary = _with_hidden_default(path, alt_canary, func)
-
-            if not isinstance(d_canary, dict):
-                print(f"[FAIL] return type should be dict, got {type(d_canary).__name__}")
-                return False
-            if d_canary.get("AAA") != "Z":
-                print(
-                    "[FAIL] create_codon_dict did not use file_path\n"
-                    "    Hint: open and read the path passed in (do not hardcode "
-                    "'data/codons.txt' or a fixed dictionary)"
-                )
-                return False
-
-            # Normal table for the scored checks.
-            alt = Path(tmp) / "codon_table.tsv"
-            alt.write_text(original)
-            d = _with_hidden_default(path, alt, func)
-    except FileNotFoundError as e:
-        print(
-            "[FAIL] create_codon_dict raised FileNotFoundError\n"
-            "    Hint: open the path passed as file_path — do not hardcode "
-            f"'data/codons.txt' ({e})"
-        )
-        return False
+        d = func(file_path)
     except Exception as e:
         print(f"[FAIL] create_codon_dict raised {type(e).__name__}: {e}")
         return False
