@@ -15,10 +15,10 @@ def create_codon_dict(file_path):
     ...
 ```
 
-- Open the file at `file_path`, read its lines, then close it.
-- Each line looks like: `AAA\tLys\tK\tLysine\n`
-- Return a dict mapping **codon → one-letter amino acid** (column 1 → column 3).
-- Example: `"AAA" → "K"`, `"ATG" → "M"`, stop codons map to `"O"` in this table.
+- The caller passes `file_path` — open **that** path (do not hardcode a filename), read its lines, then close it.
+- An example valid file is provided: `data/codons.txt`. Each line looks like: `AAA\tLys\tK\tLysine\n`
+- Return a dict mapping **column 1 → column 3** (for the example file: codon → one-letter amino acid).
+- Example from `data/codons.txt`: `"AAA" → "K"`, `"ATG" → "M"`, stop codons map to `"O"`.
 
 Keep the provided `data/codons.txt` in the repo (do not rename it).
 
